@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>[hidden]{display:none!important}body{margin:0}img{max-width:100%}</style>
+<title>Story Engine</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@400;600;800&display=swap">
+<style>
+/* Layout: one centered "story table" column — scene window on top, choices or comic panel below, story map at the end */
+:root{
+  --bg:#E9F4F5; --card:#FFFFFF; --ink:#12324A; --muted:#4F6B7C; --line:#C9DEE3;
+  --sea:#1F6F8B; --sun:#FFC93C; --brave:#E8772E; --brave-soft:#FDE6D4;
+  --care:#2F8A73; --care-soft:#D7F0E8; --focus:#1F6F8B; --on-sea:#FFFFFF;
+  --display:"Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+  --body:"Nunito", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0C1D28; --card:#132C3A; --ink:#E4F0F3; --muted:#9EB8C4; --line:#24485A;
+  --sea:#5DB7D3; --sun:#FFD25E; --brave:#FF9B55; --brave-soft:#3A2A1F;
+  --care:#5CC7A8; --care-soft:#16352E; --focus:#8FD3E8; --on-sea:#0C1D28; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0C1D28; --card:#132C3A; --ink:#E4F0F3; --muted:#9EB8C4; --line:#24485A;
+  --sea:#5DB7D3; --sun:#FFD25E; --brave:#FF9B55; --brave-soft:#3A2A1F;
+  --care:#5CC7A8; --care-soft:#16352E; --focus:#8FD3E8; --on-sea:#0C1D28; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.55;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:20px 40px}
+.wrap{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:800;font-size:2.3rem;line-height:1;margin:0;color:var(--sea)}
+h2{font-family:var(--display);font-weight:800;font-size:1.45rem;margin:0;line-height:1.2;text-wrap:balance}
+.tag{font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:800}
+.panel{background:var(--card);border:2px solid var(--line);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:14px}
+.scene{border-radius:16px;overflow:hidden;border:2px solid var(--line);line-height:0}
+.scene svg{width:100%;height:auto;display:block}
+.row{display:flex;flex-direction:column;gap:8px}
+.row .q{font-weight:800}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.opt{font:inherit;font-weight:800;color:var(--ink);background:var(--bg);border:2px solid var(--line);border-radius:14px;
+  padding:12px;display:flex;align-items:center;gap:10px;cursor:pointer;text-align:left;min-width:0}
+.opt small{display:block;font-weight:600;color:var(--muted);font-size:.85rem;line-height:1.3}
+.opt[aria-pressed="true"]{border-color:var(--sea);background:var(--card);box-shadow:0 0 0 3px color-mix(in srgb,var(--sea) 25%,transparent)}
+.opt[data-v="brave"][aria-pressed="true"]{border-color:var(--brave);background:var(--brave-soft);box-shadow:none}
+.opt[data-v="cautious"][aria-pressed="true"]{border-color:var(--care);background:var(--care-soft);box-shadow:none}
+.ico{flex:none;width:40px;height:40px}
+button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.go{font:inherit;font-family:var(--display);font-weight:800;font-size:1.2rem;border:0;border-radius:14px;padding:12px 22px;
+  background:var(--sea);color:var(--on-sea);cursor:pointer}
+.go:disabled{opacity:.4;cursor:not-allowed}
+.ghost{font:inherit;font-weight:800;background:transparent;border:2px solid var(--line);color:var(--ink);border-radius:12px;padding:8px 12px;cursor:pointer}
+.ghost.on{border-color:var(--sea);background:var(--bg)}
+.sentence{font-family:var(--display);font-weight:600;font-size:1.45rem;line-height:1.35;margin:0;min-height:3.9em;text-wrap:pretty}
+.sentence.end{border-radius:14px;padding:12px 14px;font-size:1.25rem;min-height:0}
+.sentence.end.brave{background:var(--brave-soft)} .sentence.end.cautious{background:var(--care-soft)}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.dots{display:flex;gap:8px}
+.dot{width:12px;height:12px;border-radius:50%;background:var(--line)}
+.dot.on{background:var(--sea)}
+.voice{display:flex;align-items:center;gap:6px}
+.mission{display:flex;align-items:center;gap:12px;border:2px solid var(--brave);background:var(--brave-soft);border-radius:14px;padding:12px}
+.mission p{margin:0;font-weight:800;font-size:1.05rem;line-height:1.35}
+.mission p.mhow{font-weight:600;font-size:.9rem;color:var(--muted);margin-top:4px}
+.mission .ghost{margin-left:auto;flex:none;font-size:.85rem;padding:6px 10px}
+.meters{display:flex;flex-wrap:wrap;gap:10px}
+.meter small{font-family:var(--body);font-weight:600;font-size:.85rem;color:var(--muted)}
+.mhead{display:flex;align-items:center;gap:8px}
+.meter{display:flex;flex-direction:column;align-items:flex-start;gap:4px;border:2px solid var(--line);border-radius:14px;padding:10px 14px;font-family:var(--display);font-weight:800;font-size:1.15rem}
+.meter svg{width:24px;height:24px}
+.pip{width:22px;height:22px;border-radius:50%;border:3px solid var(--line);background:transparent}
+.pip.on.safe{background:var(--care);border-color:var(--care)}
+.pip.on.fast{background:var(--brave);border-color:var(--brave)}
+.cmp-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:8px 0;border-top:1px solid var(--line)}
+.cmp-row b{min-width:140px}
+.cmp-a{min-width:150px;font-weight:600}
+.cmp-m{display:flex;align-items:center;gap:4px}
+.cmp-m svg{width:18px;height:18px}
+.cmp-m .pip{width:16px;height:16px;border-width:2px}
+.cmp-q{margin:6px 0 0}
+.wrap{max-width:1100px}
+header,#intro,#story{width:100%;max-width:760px;margin-inline:auto}
+#build{width:100%;max-width:760px;margin-inline:auto}
+@media (min-width:900px){
+  #build{max-width:1100px;display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);column-gap:24px;row-gap:14px;align-items:start}
+  #build > *{grid-column:2}
+  #build > .scene{grid-column:1;grid-row:1 / span 12;position:sticky;top:16px}
+}
+.intro .rule{font-size:1.2rem;color:var(--ink);line-height:1.5}
+.intro h2{font-size:1.8rem}
+.scene{position:relative}
+.hud{position:absolute;top:4%;right:2%;bottom:50%;display:flex;gap:8px;line-height:1.1}
+.g{display:flex;flex-direction:column;align-items:center;gap:5px;background:rgba(10,25,35,.6);border-radius:12px;padding:7px 7px 6px}
+.gi svg{width:22px;height:22px;display:block}
+.gbar{flex:1;width:20px;border-radius:10px;background:rgba(255,255,255,.22);position:relative;overflow:hidden;min-height:40px}
+.gfill{position:absolute;left:0;right:0;bottom:0;border-radius:10px;transition:height 1.4s cubic-bezier(.2,.8,.2,1)}
+.g.safe .gfill{background:#5CC7A8}
+.g.fast .gfill{background:#FF9B55}
+.gl{font-family:var(--display);font-weight:800;font-size:.8rem;color:#FFFFFF}
+@media (prefers-reduced-motion:reduce){.gfill{transition:none}}
+.whatif{border:2px dashed var(--sea);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.whatif .q{font-weight:800;color:var(--sea)}
+.mresult{border-radius:14px;padding:12px 14px;font-weight:800;display:flex;flex-wrap:wrap;align-items:center;gap:10px;border:2px solid var(--line)}
+.mresult.win{background:var(--care-soft);border-color:var(--care)}
+.mresult .go{font-size:1rem;padding:8px 14px}
+.vpick{display:flex;align-items:center;gap:6px;font-weight:800;font-size:.9rem;color:var(--muted)}
+.vpick select{font:inherit;color:var(--ink);background:var(--bg);border:2px solid var(--line);border-radius:10px;padding:6px 8px;max-width:150px}
+.nav > div{flex-wrap:wrap;justify-content:flex-end}
+.voice[aria-pressed="false"]{color:var(--muted)}
+.w{border-radius:5px;transition:background .15s}
+.w.hl{background:var(--sun);color:#12324A}
+#story .scene{margin-block:2px}
+.scene svg.fade{animation:fadeIn .5s ease}
+@keyframes fadeIn{from{opacity:.35}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.scene svg.fade{animation:none}}
+.after{display:flex;flex-direction:column;gap:12px}
+.links{display:grid;grid-template-columns:1fr;gap:8px}
+.link{border:2px dashed var(--line);border-radius:14px;padding:10px;font-size:.95rem;min-width:0;font-weight:600}
+.link{display:flex;align-items:center;gap:10px}
+.link .ico{width:36px;height:36px}
+.link b{font-family:var(--display);font-size:1.05rem;line-height:1.25}
+.try{font:inherit;font-weight:800;color:var(--ink);background:var(--bg);border:2px solid var(--line);border-radius:14px;padding:8px 12px 8px 8px;display:flex;align-items:center;gap:8px;cursor:pointer}
+.try .ico{width:32px;height:32px}
+.change,.pred{display:flex;flex-wrap:wrap;gap:8px}
+.feedback{font-weight:800;color:var(--sea)}
+.map{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.cell{border:2px solid var(--line);border-radius:12px;padding:8px;font-size:.78rem;line-height:1.3;color:var(--muted);min-width:0}
+.cell.seen{color:var(--ink);background:var(--bg)}
+.cell.seen.brave{border-color:var(--brave)} .cell.seen.cautious{border-color:var(--care)}
+.cell .act{font-weight:800;display:block;margin-top:4px}
+.rule{font-weight:600;color:var(--muted);font-size:.95rem;margin:0}
+.pattern{border-radius:14px;padding:12px 14px;background:var(--care-soft);font-weight:600}
+@media (max-width:560px){.links{grid-template-columns:1fr}.map{grid-template-columns:1fr 1fr}h1{font-size:1.9rem}.sentence{font-size:1.25rem}}
+@media (max-width:380px){.opts{grid-template-columns:1fr}}
+.rain line{stroke:#BFD9E6;stroke-width:2;animation:fall .7s linear infinite}
+@keyframes fall{from{transform:translateY(-20px)}to{transform:translateY(20px)}}
+@media (prefers-reduced-motion:reduce){.rain line{animation:none}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div><h1>Story Engine</h1></div>
+  </header>
+
+  <div class="scene" id="scene" aria-hidden="true"></div>
+
+  <!-- BUILD -->
+  <!-- INTRO -->
+  <section class="panel intro" id="intro">
+    <div id="introSlot" hidden></div>
+    <h2>A Day at the Beach</h2>
+    <p class="rule">Charles is 11 years old. He loves the beach. Today, something happens there. Will Charles be brave or scared? You decide, and see how his story changes!</p>
+    <div><button class="go" id="start">Start</button></div>
+  </section>
+
+  <section class="panel" id="build" hidden>
+    <h2>Make your choices</h2>
+    <div class="mission" id="mission">
+      <svg class="ico" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="17" fill="none" stroke="var(--brave)" stroke-width="4"/><circle cx="20" cy="20" r="10" fill="none" stroke="var(--brave)" stroke-width="4"/><circle cx="20" cy="20" r="4" fill="var(--brave)"/></svg>
+      <div style="min-width:0"><div class="tag" id="mNum"></div><p id="mText"></p><p class="mhow" id="mHow">How: Pick a personality and a place below. Read the story. Then check the meters. Not there yet? Change one thing and try again!</p></div>
+      <button class="ghost" id="mSkip" hidden>Play again</button>
+    </div>
+    <div class="row"><span class="q">Choose Charles's personality.</span>
+      <div class="opts" data-k="trait">
+        <button class="opt" data-v="cautious" aria-pressed="false" id="t-c"><svg class="ico" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="var(--care-soft)"/><path d="M13 26c2-3 4-3 7 0s5 3 7 0" stroke="var(--care)" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="15" cy="16" r="2" fill="var(--care)"/><circle cx="25" cy="16" r="2" fill="var(--care)"/></svg><span>Scared<small>Feels afraid and waits</small></span></button>
+        <button class="opt" data-v="brave" aria-pressed="false" id="t-b"><svg class="ico" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="var(--brave-soft)"/><path d="M22 6 13 22h7l-2 12 9-16h-7z" fill="var(--brave)"/></svg><span>Brave<small>Acts fast and stays safe</small></span></button>
+      </div></div>
+    <div class="row"><span class="q">When is Charles at the beach?</span>
+      <div class="opts" data-k="setting">
+        <button class="opt" data-v="day" aria-pressed="false" id="s-d"><svg class="ico" viewBox="0 0 40 40"><rect width="40" height="40" rx="10" fill="#9FD3E3"/><rect y="26" width="40" height="14" fill="#F2C66D"/><circle cx="20" cy="14" r="7" fill="#FFC93C"/></svg><span>In the day<small>Sunny, people, a lifeguard</small></span></button>
+        <button class="opt" data-v="night" aria-pressed="false" id="s-n"><svg class="ico" viewBox="0 0 40 40"><rect width="40" height="40" rx="10" fill="#1B2D4F"/><rect y="26" width="40" height="14" fill="#7D6E4E"/><circle cx="20" cy="14" r="7" fill="#F4EBC8"/><circle cx="24" cy="11" r="6" fill="#1B2D4F"/><circle cx="8" cy="8" r="1.2" fill="#FFFFFF"/><circle cx="32" cy="20" r="1.2" fill="#FFFFFF"/></svg><span>At night<small>Dark, no lifeguard</small></span></button>
+      </div></div>
+    <div class="row"><span class="q">What happens?</span>
+      <div class="opts" data-k="problem">
+        <button class="opt" data-v="lost" aria-pressed="false" id="p-l"><svg class="ico" viewBox="0 0 40 40"><rect width="40" height="40" rx="10" fill="#FDE6D4"/><circle cx="20" cy="13" r="5" fill="#8A5A3B"/><rect x="15" y="19" width="10" height="13" rx="4" fill="#E8772E"/><circle cx="17" cy="14" r="1.2" fill="#9FD3E3"/></svg><span>A lost child<small>A little boy is alone and crying</small></span></button>
+        <button class="opt" data-v="fire" aria-pressed="false" id="p-f"><svg class="ico" viewBox="0 0 40 40"><rect width="40" height="40" rx="10" fill="#3B2A22"/><path d="M12 32 q-2-10 6-16 q0 6 4 6 q-2-8 6-14 q2 10 4 14 q4 4 0 10z" fill="#FF7A1A"/><path d="M17 32 q0-6 4-8 q0 4 3 3 q3 3 0 5z" fill="#FFD23F"/></svg><span>A fire<small>Trees are burning near the beach</small></span></button>
+      </div></div>
+    <div class="row" id="predRow" hidden>
+      <span class="q">Guess first: Will Charles stay safe?</span>
+      <div class="pred">
+        <button class="ghost" data-p="yes" id="pr-yes">Yes, very safe</button>
+        <button class="ghost" data-p="no" id="pr-no">No, he takes a risk</button>
+      </div>
+    </div>
+    <div><button class="go" id="read" disabled>Explore Charles's story</button></div>
+  </section>
+
+  <!-- STORY (comic panels) -->
+  <section class="panel" id="story" hidden>
+    <div class="tag" id="recipe"></div>
+    <h2 id="sTitle"></h2>
+    <div class="feedback" id="fb"></div>
+    <p class="sentence" id="sentence" aria-live="polite"></p>
+    <div class="whatif" id="whatif" hidden>
+      <span class="q">⏸ Story paused. You choose: Is Charles scared or brave?</span>
+      <div class="change"><button class="try" id="w-careful" data-t="cautious"></button><button class="try" id="w-brave" data-t="brave"></button></div>
+    </div>
+    <div class="nav">
+      <div class="dots" id="dots"></div>
+      <div style="display:flex;gap:8px">
+        <label class="vpick" hidden>Voice <select id="voicePick"></select></label>
+        <button class="ghost voice" id="voice" aria-pressed="true"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path id="waves" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg><span id="voiceLbl">Sound on</span></button>
+        <button class="ghost" id="back">Back</button>
+        <button class="go" id="next">Next</button>
+      </div>
+    </div>
+    <div class="after" id="after" hidden>
+      <div class="meters" id="meters"></div>
+      <div class="mresult" id="mresult" hidden></div>
+      <div class="pattern" id="pattern" hidden></div>
+      <div class="tag">Try one change</div>
+      <div class="change">
+        <button class="try" id="c-trait"></button>
+        <button class="try" id="c-setting"></button>
+        <button class="try" id="c-problem"></button>
+        <button class="ghost" id="c-new">New story</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+const LABEL={cautious:"Scared",brave:"Brave",day:"Day",night:"Night",lost:"Lost child",fire:"Fire"};
+/* Each story: 4 sentences + ending. Each panel (p) lists what the picture shows. */
+const S={
+ "brave-day-lost":{t:"Charles Helps Right Away",act:"Takes him to the lifeguard",
+  lines:["Charles is on the beach. He is looking for shells.", "He sees a little boy. The boy is alone and crying.", "Charles thinks, \"He needs help. I can help him!\"", "He holds the boy's hand and takes him to the lifeguard."],
+  end:"The lifeguard calls out. Soon the boy's mom comes and hugs him.",
+  p:[[], ["child"], ["child", "think"], ["child", "walkTo"], ["child", "walkTo", "mom", "heart"]]},
+ "cautious-day-lost":{t:"Charles Walks Away",act:"Walks away",
+  lines:["Charles is on the beach. He is looking for shells.", "He sees a little boy. The boy is alone and crying.", "Charles feels scared. \"I do not know this boy. I do not know what to do,\" he thinks.", "He is afraid to talk to the boy, so he walks away. The boy stays alone."],
+  end:"The boy waits alone for a long time. Then the lifeguard finds him and his mom. Charles learns a lesson: next time, he can take the boy to the lifeguard or ask a grown-up for help.",
+  p:[[], ["child"], ["child", "think"], ["child", "walkAway"], ["child", "walkTo", "mom"]]},
+ "brave-night-lost":{t:"Charles Calls for Help",act:"Stays and calls his dad",
+  lines:["It is night. Charles is on the beach. He is looking at the moon.", "He sees a little boy. The boy is alone and crying.", "Charles thinks, \"It is dark, but I can help him!\"", "He stays with the boy and calls his dad for help."],
+  end:"Dad comes and calls the police. They find the boy's family. Everyone is safe.",
+  p:[[], ["child"], ["child", "think"], ["child", "phone"], ["child", "dad", "heart"]]},
+ "cautious-night-lost":{t:"Charles Freezes in the Dark",act:"Waits, and the boy walks away",
+  lines:["It is night. Charles is on the beach. He is looking at the moon.", "He sees a little boy. The boy is alone and crying.", "Charles feels scared. \"It is so dark. What if something bad happens?\" he thinks.", "He waits for a long time. The boy walks away in the dark."],
+  end:"Charles runs home and tells his dad. Dad and the police find the boy, but it takes a long time. Charles learns a lesson: next time, he can stay with the boy and call his dad and ask him what to do.",
+  p:[[], ["child"], ["child", "think"], ["childAway"], ["child", "dad"]]},
+ "brave-day-fire":{t:"Charles Warns Everyone",act:"Shouts and tells the lifeguard",
+  lines:["Charles is on the beach. He is looking for shells.", "Charles sees smoke. The trees near the beach are on fire!", "Charles thinks, \"Fire is dangerous. I must act fast and stay safe!\"", "He stays far from the fire and shouts, \"Fire! Fire!\" Then he runs to the lifeguard."],
+  end:"The lifeguard calls the firefighters. They come fast and put out the fire. Everyone is safe.",
+  p:[[], ["fire", "smoke"], ["fire", "smoke", "think"], ["fire", "smoke", "walkTo", "say:Fire! Fire!"], ["walkTo", "firetruck", "heart"]]},
+ "cautious-day-fire":{t:"Charles Hides",act:"Hides and tells no one",
+  lines:["Charles is on the beach. He is looking for shells.", "Charles sees smoke. The trees near the beach are on fire!", "Charles feels scared. \"What if the fire gets bigger?\" he thinks.", "He runs away fast. He does not tell anyone. The fire grows."],
+  end:"At last, the lifeguard sees the smoke and calls the firefighters. Many trees are burned. Charles learns a lesson: next time, he can tell the lifeguard right away.",
+  p:[[], ["fire", "smoke"], ["fire", "smoke", "think"], ["fire", "smoke", "bigSmoke", "runAway"], ["firetruck", "runAway"]]},
+ "brave-night-fire":{t:"Charles Calls 911",act:"Moves away and calls 911",
+  lines:["It is night. Charles is on the beach. He is looking at the moon.", "Charles sees smoke. The trees near the beach are on fire!", "Charles thinks, \"Fire is dangerous. I must act fast and stay safe!\"", "There is no lifeguard at night. He moves far away and calls 911."],
+  end:"The firefighters come and put out the fire. Charles is safe, and he helped!",
+  p:[[], ["fire", "smoke"], ["fire", "smoke", "think"], ["fire", "smoke", "farAway", "phone"], ["firetruck", "farAway", "heart"]]},
+ "cautious-night-fire":{t:"Charles Freezes",act:"Freezes and calls no one",
+  lines:["It is night. Charles is on the beach. He is looking at the moon.", "Charles sees smoke. The trees near the beach are on fire!", "Charles feels scared. \"It is so dark, and the fire is so big!\" he thinks.", "He freezes and does not call anyone. The fire grows bigger and bigger."],
+  end:"A neighbor sees the fire and calls 911. The trees are burned. Charles learns a lesson: next time, he can call 911 right away.",
+  p:[[], ["fire", "smoke"], ["fire", "smoke", "think"], ["fire", "smoke", "bigSmoke", "farAway"], ["firetruck", "farAway", "neighbor"]]}
+};
+const WHY={
+ trait:{cautious:"Cautious → played it safe",brave:"Brave → acted alone"},
+ setting:{beach:"Beach → lifeguard, rocks",harbor:"Harbor → office, docks"},
+ problem:{storm:"Storm → danger!",lost:"Lost boy → needs family"}
+};
+const WHY2={
+ "cautious-beach-storm":["Charles is cautious, so he played it safe.","He was on the beach, so he could walk home fast.","A storm came, so he had to get away from the water."],
+ "brave-beach-storm":["Charles is brave, so he helped right away.","He was on the beach, so he saw the fisherman's boat.","A storm came, so the boat had to come out of the water fast."],
+ "cautious-harbor-storm":["Charles is cautious, so he asked his dad for help.","He was at the harbor, so he could wait in the office.","A storm came, so he had to find a safe place."],
+ "brave-harbor-storm":["Charles is brave, so he helped the fishermen.","He was at the harbor, so the dock was wet and slippery.","A storm came, so the boats had to be tied fast."],
+ "cautious-beach-lost":["Charles is cautious, so he asked a grown-up for help.","He was on the beach, so a lifeguard was there.","A little boy was lost, so he needed help to find his mom."],
+ "brave-beach-lost":["Charles is brave, so he climbed the rock by himself.","He was on the beach, so there was a tall rock.","A little boy was lost, so his mom had to hear Charles."],
+ "cautious-harbor-lost":["Charles is cautious, so he asked a grown-up for help.","He was at the harbor, so there was an office with a worker.","A little boy was lost, so he needed his dad."],
+ "brave-harbor-lost":["Charles is brave, so he searched by himself.","He was at the harbor, so there were many boats and docks.","A little boy was lost, but his dad was waiting where he got lost."]
+};
+const ICON=v=>{const b=document.querySelector(`.opt[data-v="${v}"] svg`);return b?b.outerHTML:""};
+const st={trait:null,setting:null,problem:null,pred:null,mode:"build",i:0};
+let seen={};
+try{seen=JSON.parse(localStorage.getItem("se-seen")||"{}")}catch(e){}
+const key=()=>`${st.trait||"cautious"}-${st.setting}-${st.problem}`;
+const $=id=>document.getElementById(id);
+
+function person(x,y,o){
+  const s=o.s||1, rot=o.rot||0;
+  let g=`<g transform="translate(${x} ${y}) rotate(${rot}) scale(${s})">`;
+  g+=`<rect x="-9" y="-30" width="18" height="24" rx="6" fill="${o.shirt}"/>`;
+  if(o.vest) g+=`<rect x="-9" y="-26" width="18" height="8" fill="#FFE14D"/>`;
+  g+=`<rect x="-7" y="-8" width="5" height="10" fill="${o.pants||"#12324A"}"/><rect x="2" y="-8" width="5" height="10" fill="${o.pants||"#12324A"}"/>`;
+  if(o.bandage) g+=`<rect x="1" y="-4" width="7" height="3" fill="#FFFFFF"/>`;
+  g+=`<circle cx="0" cy="-40" r="10" fill="${o.skin||"#A86B45"}"/><path d="M-10 -43 q10 -12 20 0" fill="${o.hair||"#2A1B12"}"/>`;
+  if(o.hat) g+=`<rect x="-13" y="-50" width="26" height="4" fill="${o.hat}"/><rect x="-8" y="-57" width="16" height="8" fill="${o.hat}"/>`;
+  if(o.tear) g+=`<circle cx="-4" cy="-37" r="1.8" fill="#BDE6F2"/>`;
+  return g+`</g>`;
+}
+function bubble(x,y,text){
+  const w=Math.round(text.length*6.6+22);let bx=Math.min(Math.max(x-w/2,4),396-w);
+  return `<g><rect x="${bx}" y="${y-30}" width="${w}" height="26" rx="10" fill="#FFFFFF" stroke="#12324A" stroke-width="1.5"/><path d="M${x-5} ${y-4} l5 8 l4 -8z" fill="#FFFFFF" stroke="#12324A" stroke-width="1.5"/><text x="${bx+w/2}" y="${y-12}" text-anchor="middle" font-family="Nunito, sans-serif" font-weight="800" font-size="12" fill="#12324A">${text}</text></g>`;
+}
+const heart=(x,y)=>`<path d="M${x} ${y+6} l-7 -7 a4 4 0 0 1 7 -5 a4 4 0 0 1 7 5z" fill="#E8574A"/>`;
+
+function scene(tokens){
+  const T=new Set(tokens), has=t=>T.has(t);
+  const say=tokens.find(t=>t.startsWith("say:"));
+  const night=st.setting==="night", fire=has("fire");
+  const sky=night?["#0E1B33","#2A3F66"]:["#7EC8E3","#CDEFF7"];
+  let g=`<svg viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="sk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky[0]}"/><stop offset="1" stop-color="${sky[1]}"/></linearGradient></defs><rect width="400" height="200" fill="url(#sk)"/>`;
+  if(night){g+=`<g fill="#FFFFFF">`;[[160,20],[200,45],[230,18],[300,52],[372,22],[250,62],[190,70]].forEach(([x,y])=>g+=`<circle cx="${x}" cy="${y}" r="1.4" opacity=".85"/>`);g+=`</g><circle cx="340" cy="38" r="16" fill="#F4EBC8"/><circle cx="347" cy="33" r="14" fill="${sky[0]}"/>`}
+  else g+=`<circle cx="345" cy="38" r="20" fill="#FFC93C"/>`;
+  g+=`<rect y="110" width="400" height="90" fill="${night?"#1B3B55":"#2B86A6"}"/><path d="M0 118 q20 -4 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0" fill="none" stroke="#E4F4F8" stroke-width="2" opacity="${night?.45:.7}"/>`;
+  g+=`<path d="M0 150 Q120 128 260 140 T400 135 V200 H0z" fill="${night?"#7D6E4E":"#F2C66D"}"/>`;
+  // trees beside the beach (left)
+  const leaf=night?"#24503F":"#3E8E5C";
+  [[22,96],[60,88],[98,98]].forEach(([x,y])=>{g+=`<rect x="${x-3}" y="${y}" width="7" height="${150-y}" fill="#6B4329"/><circle cx="${x}" cy="${y-6}" r="22" fill="${(has("firetruck"))?"#3A3A3A":leaf}"/>`});
+  if(fire){[[22,80],[60,72],[98,82]].forEach(([x,y])=>{g+=`<path d="M${x-14} ${y+10} q4 -18 10 -22 q2 10 6 8 q2 -14 10 -20 q2 16 6 20 q4 -6 2 -12 q10 10 4 26z" fill="#FF7A1A"/><path d="M${x-6} ${y+10} q2 -10 6 -12 q2 8 6 4 q4 6 0 8z" fill="#FFD23F"/>`})}
+  if(has("smoke")){const o=has("bigSmoke")?.85:.55;g+=`<g fill="${night?"#5A6470":"#9AA3AB"}" opacity="${o}"><circle cx="40" cy="40" r="18"/><circle cx="70" cy="28" r="22"/><circle cx="100" cy="42" r="16"/>${has("bigSmoke")?`<circle cx="120" cy="90" r="30"/><circle cx="150" cy="110" r="26"/><circle cx="90" cy="110" r="28"/>`:""}</g>`}
+  // lifeguard tower: lifeguard only in the day
+  g+=`<g><rect x="232" y="100" width="34" height="6" fill="${night?"#7A3530":"#E8574A"}"/><path d="M235 106 l-6 44 M263 106 l6 44 M232 130 h34" stroke="${night?"#9AA5AD":"#FFFFFF"}" stroke-width="4"/></g>`;
+  if(!night) g+=person(249,100,{shirt:"#E8574A",s:1.15,skin:"#C98A5E",hair:"#5A3A22"});
+  if(has("phoneG")&&!night) g+=`<rect x="256" y="58" width="7" height="12" rx="2" fill="#12324A"/>`;
+  if(has("hide")) g+=``;
+  if(has("onRock")) g+=`<path d="M276 152 q8 -42 38 -40 q30 2 36 40z" fill="${night?"#4F5A62":"#7B8A93"}"/>`;
+  if(has("firetruck")) g+=`<g transform="translate(118 128)"><rect x="0" y="6" width="70" height="22" rx="3" fill="#D93A2B"/><rect x="48" y="0" width="22" height="16" rx="2" fill="#D93A2B"/><rect x="52" y="3" width="13" height="8" fill="#BFE3F2"/><rect x="6" y="2" width="38" height="3" fill="#E9E1D4"/><circle cx="16" cy="30" r="6" fill="#12324A"/><circle cx="56" cy="30" r="6" fill="#12324A"/><rect x="58" y="-4" width="6" height="4" fill="#4FA3FF"/></g>`;
+  if(has("family")) g+=person(118,150,{shirt:"#7A6A9E",s:1.2,skin:"#C98A5E"})+person(140,150,{shirt:"#D96C9B",s:1.15,skin:"#C98A5E",hair:"#5A3A22"})+person(158,150,{shirt:"#FFC93C",s:.7,skin:"#C98A5E"});
+  let rx=200, ry=150;
+  if(has("walkTo")) rx=212;
+  if(has("walk")) rx=290;
+  if(has("run")) rx=has("family")?185:150;
+  if(has("onRock")){rx=314;ry=120}
+  if(has("farAway")) rx=310;
+  if(has("near")) rx=150;
+  if(has("hide")) rx=300;
+  if(has("runAway")) rx=335;
+  if(has("walkAway")) rx=335;
+  if(has("family")&&!has("run")) rx=215;
+  if(has("firetruck")&&has("run")) rx=215;
+  const shirt=st.trait==="brave"?"#E8772E":st.trait==="cautious"?"#2F8A73":"#5C7C8E";
+  if(night&&!has("firetruck")) g+=`<path d="M${rx+12} ${ry-25} L${rx+80} ${ry-6} L${rx+80} ${ry+12}z" fill="#FFF3B0" opacity=".4"/>`;
+  if(has("runAway")&&!has("firetruck")) g+=`<g stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" opacity=".8"><path d="M${rx-36} ${ry-30} h18"/><path d="M${rx-42} ${ry-20} h22"/><path d="M${rx-34} ${ry-10} h14"/></g>`;
+  if(has("run")&&!has("firetruck")) g+=`<g stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" opacity=".8"><path d="M${rx+18} ${ry-30} h18"/><path d="M${rx+20} ${ry-20} h22"/><path d="M${rx+18} ${ry-10} h14"/></g>`;
+  g+=person(rx,ry,{shirt,rot:has("slip")?-22:0});
+  if(has("phone")) g+=`<rect x="${rx+6}" y="${ry-44}" width="7" height="12" rx="2" fill="#12324A"/>`;
+  if(has("extinguisher")) g+=`<rect x="${rx-16}" y="${ry-30}" width="9" height="20" rx="3" fill="#D93A2B"/><path d="M${rx-14} ${ry-30} l-8 -6" stroke="#12324A" stroke-width="3"/><path d="M${rx-24} ${ry-38} Q${rx-50} ${ry-60} ${rx-62} ${ry-58} M${rx-24} ${ry-36} Q${rx-48} ${ry-48} ${rx-64} ${ry-44}" stroke="#FFFFFF" stroke-width="6" fill="none" stroke-linecap="round" opacity=".9"/>`;
+  if(has("bucket")) g+=`<path d="M${rx-20} ${ry-26} h12 l-2 12 h-8z" fill="#3E6FB0"/><path d="M${rx-20} ${ry-28} Q${rx-44} ${ry-70} ${rx-62} ${ry-52}" stroke="#7FC4E8" stroke-width="5" fill="none" stroke-linecap="round"/><g fill="#7FC4E8"><circle cx="${rx-58}" cy="${ry-46}" r="3"/><circle cx="${rx-66}" cy="${ry-52}" r="2.5"/></g>`;
+  if(has("cough")) g+=`<g fill="#B8C0C6" opacity=".9"><circle cx="${rx+16}" cy="${ry-46}" r="4"/><circle cx="${rx+24}" cy="${ry-54}" r="5"/><circle cx="${rx+33}" cy="${ry-60}" r="6"/></g>`;
+  if(has("think")) g+=`<circle cx="${rx+16}" cy="${ry-60}" r="3" fill="#FFFFFF"/><circle cx="${rx+26}" cy="${ry-72}" r="12" fill="#FFFFFF"/><text x="${rx+26}" y="${ry-67}" text-anchor="middle" font-family="Baloo 2, sans-serif" font-weight="800" font-size="15" fill="#12324A">?</text>`;
+  g+=`<text x="${rx}" y="${ry+16}" text-anchor="middle" font-family="Nunito, sans-serif" font-weight="800" font-size="11" fill="#FFFFFF">Charles</text>`;
+  if(say) g+=bubble(rx,ry-56,say.slice(4));
+  if(has("hide")) g+=`<path d="M272 156 q6 -34 30 -34 q26 0 32 34z" fill="${night?"#4F5A62":"#7B8A93"}"/>`;
+  if(has("childAway")) g+=person(370,140,{shirt:"#FFC93C",s:.55,skin:"#C98A5E",hair:"#5A3A22",tear:true});
+  // lost child and helpers
+  let cx=rx+30, cy=ry;
+  if(has("onRock")){cx=222;cy=150}
+  if(has("walkAway")){cx=180;cy=150}
+  if(has("child")) g+=person(cx,cy,{shirt:"#FFC93C",s:.7,skin:"#C98A5E",hair:"#5A3A22",tear:!has("heart")&&!has("mom")&&!has("dad")&&!has("neighbor")});
+  if(has("mom")) g+=person(has("onRock")?cx-30:cx+30,cy,{shirt:"#D96C9B",s:1.25,skin:"#C98A5E",hair:"#5A3A22"});
+  if(has("dad")) g+=person(cx+32,cy,{shirt:"#3E6FB0",s:1.3});
+  if(has("neighbor")) g+=person(rx-36,ry,{shirt:"#7A6A9E",s:1.3,skin:"#C98A5E",hair:"#D9D9D9"});
+  if(has("heart")) g+=heart(has("child")?cx+12:rx+18,(has("child")?cy:ry)-70);
+  g+=`</svg>`;
+  $("scene").innerHTML=g;
+  $("scene").firstChild.classList.add("fade");
+  if(st.mode==="story"){
+    const pv=st.hudPrev||{safe:0,fast:0}, v=st.hud||{safe:0,fast:0};
+    const g=(k,icon,label,cap)=>`<div class="g ${k}" title="${cap}"><span class="gi">${icon}</span><div class="gbar"><div class="gfill" data-k="${k}" style="height:${pv[k]/3*100}%"></div></div><span class="gl">${label}</span></div>`;
+    $("scene").insertAdjacentHTML("beforeend",`<div class="hud" aria-label="Safe ${v.safe} of 3, Fast ${v.fast} of 3">${g("safe",SHIELD,"Safe","Did everyone stay safe?")}${g("fast",BOLT,"Fast","How fast help came")}</div>`);
+    requestAnimationFrame(()=>requestAnimationFrame(()=>document.querySelectorAll("#scene .gfill").forEach(el=>{el.style.height=(v[el.dataset.k]/3*100)+"%"})));
+  }
+}
+
+function buildTokens(){
+  return st.problem==="lost"?["child"]:st.problem==="fire"?["fire","smoke"]:[];
+}
+function applyMission(){const f=mi<MISSIONS.length?MISSIONS[mi].fix:{};["setting","problem"].forEach(k=>{const row=document.querySelector(`.opts[data-k="${k}"]`).closest(".row");row.hidden=!!f[k];if(f[k])st[k]=f[k]})}
+function sync(){
+  applyMission();
+  document.querySelectorAll(".opts").forEach(o=>{
+    const k=o.dataset.k;o.querySelectorAll(".opt").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===st[k])));
+  });
+  const ready=st.setting&&st.problem;
+  $("predRow").hidden=true;
+  showMission();
+  document.querySelectorAll("[data-p]").forEach(b=>b.classList.toggle("on",b.dataset.p===st.pred));
+  $("read").disabled=!ready;
+  if(st.mode==="build") scene(buildTokens());
+}
+document.querySelectorAll(".opts").forEach(o=>o.addEventListener("click",e=>{
+  const b=e.target.closest(".opt");if(!b)return;st[o.dataset.k]=b.dataset.v;st.pred=null;sync();
+}));
+document.querySelectorAll("[data-p]").forEach(b=>b.addEventListener("click",()=>{st.pred=b.dataset.p;sync()}));
+
+let voiceOn=true, sayId=0, advT=null;
+const synth=("speechSynthesis" in window)?window.speechSynthesis:null;
+function rankVoices(){try{const score=v=>(/natural|neural|online/i.test(v.name)?40:0)+(/premium|enhanced/i.test(v.name)?30:0)+(/ava|aria|jenny|emma|ana|samantha|google uk english female|google us/i.test(v.name)?15:0)+(/en-US|en-GB/i.test(v.lang)?5:0);
+  return synth.getVoices().filter(v=>/^en/i.test(v.lang)).sort((a,b)=>score(b)-score(a))}catch(e){return []}}
+let voiceName=null;try{voiceName=localStorage.getItem("se-voice")}catch(e){}
+function pickVoice(){const vs=rankVoices();return vs.find(v=>v.name===voiceName)||vs[0]||null}
+function fillVoices(){const sel=document.getElementById("voicePick");if(!sel||!synth)return;const vs=rankVoices();if(!vs.length)return;const cur=pickVoice();
+  sel.innerHTML=vs.map(v=>`<option value="${v.name}" ${cur&&v.name===cur.name?"selected":""}>${v.name.replace(/Microsoft |Google /,"").replace(/ - English.*| \(.*\)|Online/g,"").trim()}</option>`).join("");sel.parentElement.hidden=true}
+if(synth){fillVoices();try{synth.addEventListener("voiceschanged",fillVoices)}catch(e){}}
+const player=new Audio();player.preload="auto";
+function stopVoice(){clearTimeout(advT);sayId++;try{synth&&synth.cancel()}catch(e){}try{player.pause()}catch(e){}hl(-1)}
+function words(text){let i=0;return text.split(" ").map(w=>{const s=`<span class="w" data-i="${i}">${w}</span>`;i+=w.length+1;return s}).join(" ")}
+function hl(ci){document.querySelectorAll("#sentence .w").forEach(el=>{const a=+el.dataset.i;el.classList.toggle("hl",ci>=a&&ci<a+el.textContent.length+1)})}
+/* Voice moods: how fast and how high the narrator speaks in each kind of moment */
+const MOOD={calm:{r:.9,p:1,v:1},tense:{r:.92,p:.94,v:1},gentle:{r:.85,p:1.04,v:.9},excited:{r:1.02,p:1.1,v:1},happy:{r:.95,p:1.08,v:1},worried:{r:.86,p:.97,v:.95}};
+function moodOf(s,i){const t=s.p[i]||[],h=x=>t.includes(x),say=t.some(x=>x.startsWith("say:"));
+  if(i===4)return (/next time|burned|long time/i.test(s.end)||h("neighbor")||h("cough"))?"worried":"happy";
+  if(h("slip")||h("run")||say)return "excited";
+  if(h("think"))return "worried";
+  if(h("fire"))return "tense";
+  if(h("child"))return "gentle";
+  return "calm";}
+/* Recorded narration for each panel (audio/<story>-<panel>.mp3); the browser voice is only a backup */
+function speak(text,onEnd,mood){
+  stopVoice();const id=sayId;
+  if(!voiceOn)return;
+  player.src=`audio/${key()}-${st.i}.mp3`;
+  player.ontimeupdate=()=>{if(id!==sayId||!player.duration)return;hl(Math.floor(player.currentTime/player.duration*text.length))};
+  player.onended=()=>{if(id!==sayId)return;hl(-1);advT=setTimeout(()=>{if(id===sayId)onEnd()},1300)};
+  player.onerror=()=>{if(id!==sayId)return;speakTTS(text,onEnd,mood,id)};
+  const pr=player.play();if(pr&&pr.catch)pr.catch(()=>{});
+}
+function speakTTS(text,onEnd,mood,id){
+  if(!synth||typeof SpeechSynthesisUtterance==="undefined"){advT=setTimeout(()=>{if(id===sayId)onEnd()},4500);return}
+  const M=MOOD[mood]||MOOD.calm, v=pickVoice();
+  let off=0;const parts=text.split(/(".*?")/).filter(Boolean).map(t=>{const o=off;off+=t.length;return {t,o,q:t.startsWith('"')}});
+  parts.forEach((pt,n)=>{
+    const u=new SpeechSynthesisUtterance(pt.t);
+    if(v)u.voice=v;u.lang=v?v.lang:"en-US";
+    u.rate=pt.q?Math.min(M.r+.05,1.2):M.r;u.pitch=pt.q?Math.min(M.p+.06,2):M.p;u.volume=M.v;
+    u.onboundary=e=>{if(id!==sayId||(e.name&&e.name!=="word"))return;hl(pt.o+e.charIndex)};
+    if(n===parts.length-1)u.onend=()=>{if(id!==sayId)return;hl(-1);advT=setTimeout(()=>{if(id===sayId)onEnd()},1100)};
+    try{synth.speak(u)}catch(e){}
+  });
+}
+function panel(){
+  const paused=st.i===2&&!st.trait;
+  const s=S[key()], last=st.i===4;
+  st.hudPrev=st.hud||{safe:0,fast:0};st.hud=last?METER[key()]:{safe:0,fast:0};
+  scene(s.p[paused?1:st.i]);
+  const el=$("sentence"), text=last?s.end:s.lines[st.i];
+  el.className="sentence"+(last?" end "+st.trait:"");
+  el.innerHTML=paused?"":(last?`<b>The ending:</b> `:"")+words(text);
+  if(paused)stopVoice();else speak(text,()=>{if(st.mode==="story"&&st.i<4){st.i++;panel()}},moodOf(s,st.i));
+  $("whatif").hidden=!paused;
+  $("dots").innerHTML=[0,1,2,3,4].map(n=>`<span class="dot ${n<=st.i?"on":""}"></span>`).join("");
+  $("back").disabled=st.i===0;$("back").style.visibility=st.i===0?"hidden":"visible";
+  $("next").hidden=last||paused;
+  $("after").hidden=!last;
+  const m=METER[key()];
+  $("fb").textContent="";
+  if(last){
+    const k=key();seen[k]=1;try{localStorage.setItem("se-seen",JSON.stringify(seen))}catch(e){}
+    $("meters").hidden=true;$("meters").innerHTML=`<div class="meter"><div class="mhead">${SHIELD}Safe ${pips(m.safe,"safe")}</div><small>Did everyone stay safe?</small></div><div class="meter"><div class="mhead">${BOLT}Fast ${pips(m.fast,"fast")}</div><small>How fast help came</small></div>`;
+    checkMission(m);
+    map();
+  }
+}
+/* The model (1-3): Brave = acts fast in a safe way (warns, gets a grown-up, calls for help). Scared = waits, so the problem grows. Night is harder: no lifeguard, so help is slower and waiting costs more. */
+const METER={
+ "brave-day-lost":{safe:3,fast:3},"cautious-day-lost":{safe:3,fast:2},
+ "brave-night-lost":{safe:3,fast:2},"cautious-night-lost":{safe:2,fast:1},
+ "brave-day-fire":{safe:3,fast:3},"cautious-day-fire":{safe:2,fast:1},
+ "brave-night-fire":{safe:3,fast:2},"cautious-night-fire":{safe:2,fast:1}
+};
+const SHIELD=`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z" fill="var(--care)"/></svg>`;
+const BOLT=`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-2 8 10-13h-7z" fill="var(--brave)"/></svg>`;
+const pips=(n,c)=>[1,2,3].map(i=>`<span class="pip ${i<=n?"on "+c:""}"></span>`).join("");
+const MISSIONS=[
+ {text:"A little boy is lost. Make a story where he finds his family very fast.",fix:{problem:"lost"},test:m=>m.fast===3,hint:"Look at the Fast meter. Try another personality or another place."},
+ {text:"A storm is coming! Make a story where Charles helps fast and does not get hurt.",fix:{problem:"storm"},test:m=>m.fast===3&&m.safe>=2,hint:"Look at both meters. Try another personality or another place."},
+ {text:"The little boy is lost at the harbor. Make the fastest story you can here.",fix:{problem:"lost",setting:"harbor"},test:m=>m.fast===2,hint:"Look at the Fast meter. Try the other personality."}
+];
+let mi=99; /* missions turned off: free exploration */
+function saveMi(){}
+function showMission(){
+  $("mission").hidden=mi>=MISSIONS.length;if(mi>=MISSIONS.length)return;
+  if(mi>=MISSIONS.length){$("mNum").textContent="All missions done";$("mText").textContent="Great job! Now try any story you like.";$("mHow").hidden=true;$("mSkip").hidden=false;return}
+  $("mNum").textContent=`Your mission · ${mi+1} of ${MISSIONS.length}`;$("mText").textContent=MISSIONS[mi].text;$("mHow").hidden=false;$("mHow").textContent=MISSIONS[mi].fix.setting?"How: Pick a personality below. Read the story. Then check the Fast meter.":"How: Pick Charles's personality and where he is. Read the story. Then check the meters. Not there yet? Change one thing and try again!";$("mSkip").hidden=true;
+}
+function checkMission(m){
+  if(st.checked)return;st.checked=true;
+  const r=$("mresult");
+  if(mi>=MISSIONS.length){r.hidden=true;return}
+  r.hidden=false;
+  if(MISSIONS[mi].test(m)){
+    r.className="mresult win";
+    r.innerHTML=`<span>Mission ${mi+1} complete!</span><button class="go" id="mNext">${mi+1<MISSIONS.length?"Next mission":"Finish"}</button>`;
+    mi++;saveMi();
+    $("mNext").addEventListener("click",()=>{st.trait=st.setting=st.problem=null;toBuild()});
+  } else {
+    r.className="mresult";
+    r.innerHTML=`<span>Not yet. ${MISSIONS[mi].hint}</span>`;
+  }
+}
+$("mSkip").addEventListener("click",()=>{mi=0;st.trait=st.setting=st.problem=null;toBuild()});
+function show(){
+  const s=S[key()];
+  st.mode="story";st.i=0;st.checked=false;st.trait=null;$("mresult").hidden=true;
+  head();
+  {const f=mi<MISSIONS.length?MISSIONS[mi].fix:{};$("c-setting").hidden=!!f.setting;$("c-problem").hidden=!!f.problem;}
+  $("build").hidden=true;$("story").hidden=false;
+  $("story").insertBefore($("scene"),$("sentence"));
+  panel();$("story").scrollIntoView({behavior:"smooth",block:"start"});
+}
+$("read").addEventListener("click",show);
+function head(){const t=st.trait;$("recipe").textContent=`${t?LABEL[t]+" + ":""}${LABEL[st.setting]} + ${LABEL[st.problem]}`;$("sTitle").textContent=t?S[key()].t:(st.setting==="night"?"A Night at the Beach":"A Day at the Beach");["trait","setting","problem"].forEach(k=>{if(!st[k])return;const v=flip[k][st[k]];const b=$("c-"+k);b.innerHTML=`${ICON(v)}<span>${k==="trait"?"Try "+LABEL[v].toLowerCase():LABEL[v]}</span>`;b.setAttribute("aria-label","Change to "+LABEL[v])})}
+document.querySelectorAll("#whatif .try").forEach(b=>b.addEventListener("click",()=>{st.trait=b.dataset.t;st.checked=false;head();panel();$("fb").textContent=`Charles is ${LABEL[st.trait].toLowerCase()}. Watch what he does!`}));
+$("voicePick").addEventListener("change",e=>{voiceName=e.target.value;try{localStorage.setItem("se-voice",voiceName)}catch(_){}if(st.mode==="story"&&voiceOn){const s=S[key()];speak(st.i===4?s.end:s.lines[st.i],()=>{if(st.mode==="story"&&st.i<4){st.i++;panel()}},moodOf(s,st.i))}});
+$("voice").addEventListener("click",()=>{voiceOn=!voiceOn;$("voice").setAttribute("aria-pressed",String(voiceOn));$("voiceLbl").textContent=voiceOn?"Sound on":"Sound off";$("waves").style.display=voiceOn?"":"none";if(voiceOn){const s=S[key()];speak(st.i===4?s.end:s.lines[st.i],()=>{if(st.mode==="story"&&st.i<4){st.i++;panel()}},moodOf(s,st.i))}else stopVoice()});
+$("next").addEventListener("click",()=>{if(st.i<4){st.i++;panel()}});
+$("back").addEventListener("click",()=>{if(st.i>0){st.i--;panel()}});
+function toBuild(){stopVoice();$("build").prepend($("scene"));st.mode="build";st.pred=null;$("story").hidden=true;$("build").hidden=false;sync();$("scene").scrollIntoView({behavior:"smooth",block:"start"})}
+const flip={trait:{brave:"cautious",cautious:"brave"},setting:{day:"night",night:"day"},problem:{lost:"fire",fire:"lost"}};
+$("c-trait").addEventListener("click",()=>{st.trait=flip.trait[st.trait];st.checked=false;st.i=2;head();panel();$("fb").textContent=`Same time, same problem. Now Charles is ${LABEL[st.trait].toLowerCase()}!`;$("story").scrollIntoView({behavior:"smooth",block:"start"})});
+["setting","problem"].forEach(k=>$("c-"+k).addEventListener("click",()=>{st[k]=flip[k][st[k]];st.trait=null;toBuild()}));
+$("c-new").addEventListener("click",()=>{st.trait=st.setting=st.problem=null;toBuild()});
+
+function map(){
+  const pat=$("pattern");
+  if(!st.trait||!st.setting||!st.problem){pat.hidden=true;return}
+  const other=flip.trait[st.trait], ok=`${other}-${st.setting}-${st.problem}`;
+  pat.hidden=false;
+  if(!seen[ok]){pat.innerHTML=`<b>Try this:</b> Keep the same time and the same problem. Make Charles <b>${LABEL[other].toLowerCase()}</b>. What will change?`;return}
+  const row=k=>{const t=k.split("-")[0],m=METER[k];return `<div class="cmp-row"><b>${LABEL[t]} Charles</b><span class="cmp-a">${S[k].act}</span><span class="cmp-m">${SHIELD}${pips(m.safe,"safe")}</span><span class="cmp-m">${BOLT}${pips(m.fast,"fast")}</span></div>`};
+  pat.innerHTML=`<div class="tag">Compare: same time, same problem</div>${row(`cautious-${st.setting}-${st.problem}`)}${row(`brave-${st.setting}-${st.problem}`)}<p class="cmp-q"><b>Think:</b> Only his personality changed. What changed in the story?</p>`;
+}
+function oldMap(){
+  const order=[];["cautious","brave"].forEach(t=>["beach","harbor"].forEach(se=>["storm","lost"].forEach(p=>order.push([t,se,p]))));
+  $("map").innerHTML=order.map(([t,se,p])=>{const k=`${t}-${se}-${p}`,on=seen[k];
+    return `<div class="cell ${on?"seen "+t:""}">${LABEL[t]} · ${LABEL[se]} · ${LABEL[p]}<span class="act">${on?S[k].act:"?"}</span></div>`}).join("");
+  const ks=Object.keys(seen), n=ks.length;$("count").textContent=`${n} of 8 stories found`;
+  const both=ks.some(k=>k.startsWith("brave"))&&ks.some(k=>k.startsWith("cautious"));
+  const pat=$("pattern");pat.hidden=n<3||!both;
+  pat.innerHTML=n===8?"<b>You found them all!</b> Cautious Charles plays it safe or asks a grown-up. Brave Charles acts fast on his own. The setting changes who is there to help.":"<b>Do you see a pattern yet?</b> Compare a brave story and a cautious story in the same place.";
+}
+st.mode="intro";
+document.querySelector('.opts[data-k="trait"]').closest(".row").hidden=true;
+$("w-careful").innerHTML=`${ICON("cautious")}<span>Scared</span>`;
+$("w-brave").innerHTML=`${ICON("brave")}<span>Brave</span>`;
+$("intro").insertBefore($("scene"),$("introSlot"));
+scene([]);
+$("start").addEventListener("click",()=>{$("intro").hidden=true;$("build").prepend($("scene"));$("build").hidden=false;st.mode="build";sync();window.scrollTo({top:0,behavior:"smooth"})});
+sync();map();
+</script>
+
+</html>
